@@ -1,14 +1,17 @@
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { validateEmail, validatePassword, validatePhone } from '@/utils/validation';
+import { useAuthStore } from '@/store/auth';
 
 export default function Signup() {
+  const signUp = useAuthStore((state) => state.signUp);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<'owner' | 'tenant' | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({
     name: '',
     email: '',
@@ -67,14 +70,25 @@ export default function Signup() {
 
   const handleSignup = async () => {
     if (!validateForm()) return;
+    if (!role) return;
 
     try {
-      // TODO: Implement signup API call with role
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      router.replace('/(tabs)');
+      setIsLoading(true);
+      await signUp({
+        name,
+        email,
+        password,
+        phone,
+        role,
+      });
+      // Navigation will be handled by the root layout
     } catch (error) {
-      // Handle signup error
-      console.error(error);
+      Alert.alert(
+        'Registration Failed',
+        'There was an error creating your account. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -166,12 +180,14 @@ export default function Signup() {
         </View>
 
         <Pressable style={styles.signupButton} onPress={handleSignup}>
-          <Text style={styles.signupButtonText}>Create Account</Text>
+          <Text style={styles.signupButtonText}>
+            {isLoading ? 'Creating Account...' : 'Create Account'}
+          </Text>
         </Pressable>
 
         <Pressable 
           style={styles.loginLink} 
-          onPress={() => router.push('/auth/login')}
+          onPress={() => router.push('./login')}
         >
           <Text style={styles.loginText}>
             Already have an account? <Text style={styles.loginLinkText}>Login</Text>

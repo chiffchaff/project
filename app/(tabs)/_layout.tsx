@@ -1,7 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Chrome as Home, Building2, Receipt, CircleUser as UserCircle2 } from 'lucide-react-native';
+import { useAuthStore } from '@/store/auth';
 
 export default function TabLayout() {
+  const { user } = useAuthStore();
+  const isOwner = user?.role === 'owner';
+
   return (
     <Tabs screenOptions={{
       tabBarStyle: {
@@ -19,17 +23,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="properties"
-        options={{
-          title: 'Properties',
-          tabBarIcon: ({ color, size }) => <Building2 size={size} color={color} />,
-        }}
-      />
+      {isOwner && (
+        <Tabs.Screen
+          name="properties"
+          options={{
+            title: 'Properties',
+            tabBarIcon: ({ color, size }) => <Building2 size={size} color={color} />,
+          }}
+        />
+      )}
       <Tabs.Screen
         name="payments"
         options={{
-          title: 'Payments',
+          title: isOwner ? 'Collections' : 'Payments',
           tabBarIcon: ({ color, size }) => <Receipt size={size} color={color} />,
         }}
       />

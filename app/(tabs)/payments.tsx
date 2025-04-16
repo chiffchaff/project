@@ -1,7 +1,11 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { IndianRupee, CircleCheck as CheckCircle2, Circle as XCircle, Clock } from 'lucide-react-native';
+import { useAuthStore } from '@/store/auth';
 
 export default function Payments() {
+  const { user } = useAuthStore();
+  const isOwner = user?.role === 'owner';
+
   const payments = [
     {
       id: 1,
@@ -27,6 +31,23 @@ export default function Payments() {
       status: 'overdue',
       date: 'Due: 10 Mar 2024',
     },
+  ];
+
+  const tenantPayments = [
+    {
+      id: 1,
+      month: 'March 2024',
+      amount: '₹15,000',
+      status: 'paid',
+      date: 'Paid on 1st Mar',
+    },
+    {
+      id: 2,
+      month: 'April 2024',
+      amount: '₹15,000',
+      status: 'pending',
+      date: 'Due on 1st Apr',
+    }
   ];
 
   const getStatusIcon = (status: string) => {
@@ -58,48 +79,86 @@ export default function Payments() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Rent Payments</Text>
-        <Pressable style={styles.addButton}>
-          <Text style={styles.addButtonText}>Record Payment</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.summary}>
-        <View style={styles.summaryCard}>
-          <IndianRupee size={20} color="#2563eb" />
-          <Text style={styles.summaryAmount}>₹45,000</Text>
-          <Text style={styles.summaryLabel}>Collected this month</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <IndianRupee size={20} color="#dc2626" />
-          <Text style={styles.summaryAmount}>₹30,000</Text>
-          <Text style={styles.summaryLabel}>Pending collection</Text>
-        </View>
-      </View>
-
-      <View style={styles.paymentsContainer}>
-        <Text style={styles.sectionTitle}>Recent Transactions</Text>
-        {payments.map((payment) => (
-          <Pressable key={payment.id} style={styles.paymentCard}>
-            <View style={styles.paymentHeader}>
-              <View style={styles.tenantInfo}>
-                <Text style={styles.tenantName}>{payment.tenant}</Text>
-                <Text style={styles.propertyName}>{payment.property}</Text>
-              </View>
-              <Text style={styles.paymentAmount}>{payment.amount}</Text>
-            </View>
-            <View style={styles.paymentFooter}>
-              <View style={[styles.statusBadge, getStatusStyle(payment.status)]}>
-                {getStatusIcon(payment.status)}
-                <Text style={[styles.statusText, getStatusStyle(payment.status)]}>
-                  {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                </Text>
-              </View>
-              <Text style={styles.paymentDate}>{payment.date}</Text>
-            </View>
+        <Text style={styles.title}>{isOwner ? 'Rent Collections' : 'My Payments'}</Text>
+        {isOwner && (
+          <Pressable style={styles.addButton}>
+            <Text style={styles.addButtonText}>Record Payment</Text>
           </Pressable>
-        ))}
+        )}
       </View>
+
+      {isOwner ? (
+        <>
+          <View style={styles.summary}>
+            <View style={styles.summaryCard}>
+              <IndianRupee size={20} color="#2563eb" />
+              <Text style={styles.summaryAmount}>₹45,000</Text>
+              <Text style={styles.summaryLabel}>Collected this month</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <IndianRupee size={20} color="#dc2626" />
+              <Text style={styles.summaryAmount}>₹30,000</Text>
+              <Text style={styles.summaryLabel}>Pending collection</Text>
+            </View>
+          </View>
+
+          <View style={styles.paymentsContainer}>
+            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            {payments.map((payment) => (
+              <Pressable key={payment.id} style={styles.paymentCard}>
+                <View style={styles.paymentHeader}>
+                  <View style={styles.tenantInfo}>
+                    <Text style={styles.tenantName}>{payment.tenant}</Text>
+                    <Text style={styles.propertyName}>{payment.property}</Text>
+                  </View>
+                  <Text style={styles.paymentAmount}>{payment.amount}</Text>
+                </View>
+                <View style={styles.paymentFooter}>
+                  <View style={[styles.statusBadge, getStatusStyle(payment.status)]}>
+                    {getStatusIcon(payment.status)}
+                    <Text style={[styles.statusText, getStatusStyle(payment.status)]}>
+                      {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                    </Text>
+                  </View>
+                  <Text style={styles.paymentDate}>{payment.date}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : (
+        <View style={styles.tenantPaymentsContainer}>
+          <View style={styles.currentRentCard}>
+            <Text style={styles.currentRentLabel}>Current Month's Rent</Text>
+            <Text style={styles.currentRentAmount}>₹15,000</Text>
+            <Text style={styles.currentRentDueDate}>Due on 1st May 2024</Text>
+            <Pressable style={styles.payNowButton}>
+              <Text style={styles.payNowButtonText}>Pay Now</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.sectionTitle}>Payment History</Text>
+          {tenantPayments.map((payment) => (
+            <Pressable key={payment.id} style={styles.paymentCard}>
+              <View style={styles.paymentHeader}>
+                <View style={styles.tenantInfo}>
+                  <Text style={styles.tenantName}>{payment.month}</Text>
+                  <Text style={styles.paymentDate}>{payment.date}</Text>
+                </View>
+                <Text style={styles.paymentAmount}>{payment.amount}</Text>
+              </View>
+              <View style={styles.paymentFooter}>
+                <View style={[styles.statusBadge, getStatusStyle(payment.status)]}>
+                  {getStatusIcon(payment.status)}
+                  <Text style={[styles.statusText, getStatusStyle(payment.status)]}>
+                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -235,5 +294,46 @@ const styles = StyleSheet.create({
   paymentDate: {
     fontSize: 14,
     color: '#64748b',
+  },
+  currentRentCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  currentRentLabel: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  currentRentAmount: {
+    fontSize: 32,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginVertical: 8,
+  },
+  currentRentDueDate: {
+    fontSize: 14,
+    color: '#dc2626',
+    marginBottom: 16,
+  },
+  payNowButton: {
+    backgroundColor: '#2563eb',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  payNowButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  tenantPaymentsContainer: {
+    paddingTop: 20,
   },
 });

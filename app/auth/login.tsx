@@ -2,20 +2,23 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, Alert } from 'react-native';
 import { router } from 'expo-router';
 import * as validation from '@/utils/validation';
+import { useAuthStore } from '@/store/auth';
 
 export default function Login() {
+  const signIn = useAuthStore(state => state.signIn);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'owner' | 'tenant' | null>(null);
   const [errors, setErrors] = useState({ 
     email: '', 
     password: '',
-    role: ''
+    role: '',
+    form: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
   const validateForm = (): boolean => {
-    const newErrors = { email: '', password: '', role: '' };
+    const newErrors = { email: '', password: '', role: '', form: '' };
     let isValid = true;
 
     if (!email) {
@@ -42,17 +45,16 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!validateForm()) return;
+    if (!role) return;
 
     try {
       setIsLoading(true);
-      // TODO: Implement API call for authentication with role
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      router.replace('/(tabs)');
-    } catch (error) {
-      Alert.alert(
-        'Login Failed',
-        'Invalid email or password. Please try again.'
-      );
+      setErrors({ email: '', password: '', role: '', form: '' });
+      await signIn(email, password, role);
+      // Navigation will be handled by the root layout
+    } catch (error: any) {
+      const message = error?.message || 'Something went wrong. Please try again.';
+      setErrors(prev => ({ ...prev, form: message }));
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +76,10 @@ export default function Login() {
                 styles.roleButton,
                 role === 'owner' && styles.roleButtonActive,
               ]}
-              onPress={() => setRole('owner')}
+              onPress={() => {
+                setRole('owner');
+                setErrors(prev => ({ ...prev, role: '' }));
+              }}
             >
               <Text style={[
                 styles.roleButtonText,
@@ -86,7 +91,10 @@ export default function Login() {
                 styles.roleButton,
                 role === 'tenant' && styles.roleButtonActive,
               ]}
-              onPress={() => setRole('tenant')}
+              onPress={() => {
+                setRole('tenant');
+                setErrors(prev => ({ ...prev, role: '' }));
+              }}
             >
               <Text style={[
                 styles.roleButtonText,
@@ -102,10 +110,14 @@ export default function Login() {
           <TextInput
             style={[styles.input, errors.email ? styles.inputError : null]}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              setErrors(prev => ({ ...prev, email: '', form: '' }));
+            }}
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
+            editable={!isLoading}
           />
           {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
         </View>
@@ -115,16 +127,28 @@ export default function Login() {
           <TextInput
             style={[styles.input, errors.password ? styles.inputError : null]}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              setErrors(prev => ({ ...prev, password: '', form: '' }));
+            }}
             placeholder="Enter your password"
             secureTextEntry
+            editable={!isLoading}
           />
           {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
         </View>
 
-        <Pressable style={styles.forgotPassword}>
+        <Pressable 
+          style={styles.forgotPassword} 
+          onPress={() => router.push('./forgot-password')}
+          disabled={isLoading}
+        >
           <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </Pressable>
+
+        {errors.form ? (
+          <Text style={[styles.errorText, styles.formError]}>{errors.form}</Text>
+        ) : null}
 
         <Pressable 
           style={[styles.loginButton, isLoading ? styles.loginButtonDisabled : null]}
@@ -138,7 +162,8 @@ export default function Login() {
 
         <Pressable 
           style={styles.signupLink} 
-          onPress={() => router.push('/auth/signup')}
+          onPress={() => router.push('./signup')}
+          disabled={isLoading}
         >
           <Text style={styles.signupText}>
             Don't have an account? <Text style={styles.signupLinkText}>Sign up</Text>
@@ -256,5 +281,9 @@ const styles = StyleSheet.create({
   signupLinkText: {
     color: '#2563eb',
     fontWeight: '500',
+  },
+  formError: {
+    textAlign: 'center',
+    marginTop: 12,
   },
 });

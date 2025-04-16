@@ -1,7 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
 import { Settings, Bell, CircleHelp as HelpCircle, LogOut } from 'lucide-react-native';
+import { useAuthStore } from '@/store/auth';
 
 export default function Profile() {
+  const { user, signOut } = useAuthStore();
+
   const menuItems = [
     {
       id: 'settings',
@@ -23,6 +26,15 @@ export default function Profile() {
     },
   ];
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      // Navigation will be handled by the root layout
+    } catch (error) {
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -30,8 +42,9 @@ export default function Profile() {
           source={{ uri: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400' }}
           style={styles.profileImage}
         />
-        <Text style={styles.name}>Rajesh Kumar</Text>
-        <Text style={styles.email}>rajesh.kumar@example.com</Text>
+        <Text style={styles.name}>{user?.name}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={styles.role}>{user?.role === 'owner' ? 'Property Owner' : 'Tenant'}</Text>
       </View>
 
       <View style={styles.menuSection}>
@@ -48,7 +61,7 @@ export default function Profile() {
         ))}
       </View>
 
-      <Pressable style={styles.logoutButton}>
+      <Pressable style={styles.logoutButton} onPress={handleSignOut}>
         <LogOut size={20} color="#dc2626" />
         <Text style={styles.logoutText}>Log Out</Text>
       </Pressable>
@@ -85,6 +98,15 @@ const styles = StyleSheet.create({
   email: {
     fontSize: 16,
     color: '#64748b',
+  },
+  role: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 4,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
   menuSection: {
     padding: 20,
