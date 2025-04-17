@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import * as validation from '@/utils/validation';
 import { useAuthStore } from '@/store/auth';
 
 export default function Login() {
   const signIn = useAuthStore(state => state.signIn);
+  
+  const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'owner' | 'tenant' | null>(null);
@@ -15,7 +17,6 @@ export default function Login() {
     role: '',
     form: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
 
   const validateForm = (): boolean => {
     const newErrors = { email: '', password: '', role: '', form: '' };
@@ -50,11 +51,19 @@ export default function Login() {
     try {
       setIsLoading(true);
       setErrors({ email: '', password: '', role: '', form: '' });
+      
       await signIn(email, password, role);
-      // Navigation will be handled by the root layout
+      // Navigation will be handled by root layout
     } catch (error: any) {
-      const message = error?.message || 'Something went wrong. Please try again.';
-      setErrors(prev => ({ ...prev, form: message }));
+      console.error('Login error:', error);
+      const message = error?.response?.data?.message || 
+                     error?.message || 
+                     'Failed to sign in. Please check your credentials and try again.';
+      
+      setErrors(prev => ({ 
+        ...prev, 
+        form: message 
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -118,6 +127,7 @@ export default function Login() {
             keyboardType="email-address"
             autoCapitalize="none"
             editable={!isLoading}
+            autoComplete="email"
           />
           {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
         </View>
@@ -134,6 +144,7 @@ export default function Login() {
             placeholder="Enter your password"
             secureTextEntry
             editable={!isLoading}
+            autoComplete="password"
           />
           {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
         </View>
@@ -155,9 +166,11 @@ export default function Login() {
           onPress={handleLogin}
           disabled={isLoading}
         >
-          <Text style={styles.loginButtonText}>
-            {isLoading ? 'Logging in...' : 'Login'}
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.loginButtonText}>Login</Text>
+          )}
         </Pressable>
 
         <Pressable 

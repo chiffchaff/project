@@ -24,12 +24,11 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   user: null,
-  isLoading: true,
+  isLoading: false,
   error: null,
 
   loadStoredAuth: async () => {
     try {
-      set({ isLoading: true, error: null });
       const [token, userStr] = await Promise.all([
         AsyncStorage.getItem('auth_token'),
         AsyncStorage.getItem('auth_user')
@@ -37,17 +36,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       
       if (token && userStr) {
         const user = JSON.parse(userStr);
-        // Validate token with backend
         try {
           const { user: freshUser } = await authApi.validateToken();
-          set({ token, user: freshUser, isLoading: false });
+          set({ token, user: freshUser, isLoading: false, error: null });
         } catch (error) {
-          // Token is invalid, clear storage
           await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
-          set({ token: null, user: null, isLoading: false });
+          set({ token: null, user: null, isLoading: false, error: null });
         }
       } else {
-        set({ isLoading: false });
+        set({ isLoading: false, error: null });
       }
     } catch (error) {
       console.error('Error loading auth state:', error);
@@ -58,19 +55,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   signIn: async (email: string, password: string, role: 'owner' | 'tenant') => {
     try {
       set({ isLoading: true, error: null });
-      const { token, user } = await authApi.login(email, password, role);
-
-      // Store auth data
+      
+      const response = await authApi.login(email, password, role);
+      
       await Promise.all([
-        AsyncStorage.setItem('auth_token', token),
-        AsyncStorage.setItem('auth_user', JSON.stringify(user))
+        AsyncStorage.setItem('auth_token', response.token),
+        AsyncStorage.setItem('auth_user', JSON.stringify(response.user))
       ]);
 
-      set({ token, user, isLoading: false });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Authentication failed';
-      set({ error: errorMessage, isLoading: false });
-      throw new Error(errorMessage);
+      set({ 
+        token: response.token,
+        user: response.user,
+        isLoading: false,
+        error: null 
+      });
+    } catch (error) {
+      set({ isLoading: false, error: String(error) });
+      throw error;
     }
   },
 
@@ -79,13 +80,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: true, error: null });
       const { token, user } = await authApi.signup(data);
 
-      // Store auth data
       await Promise.all([
         AsyncStorage.setItem('auth_token', token),
         AsyncStorage.setItem('auth_user', JSON.stringify(user))
       ]);
 
-      set({ token, user, isLoading: false });
+      set({ token, user, isLoading: false, error: null });
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Registration failed';
       set({ error: errorMessage, isLoading: false });
@@ -100,7 +100,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         AsyncStorage.removeItem('auth_token'),
         AsyncStorage.removeItem('auth_user')
       ]);
-      set({ token: null, user: null, isLoading: false });
+      set({ token: null, user: null, isLoading: false, error: null });
     } catch (error) {
       console.error('Sign out error:', error);
       set({ error: 'Sign out failed', isLoading: false });

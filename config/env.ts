@@ -1,6 +1,12 @@
+import { Platform } from 'react-native';
+
 const ENV = {
   dev: {
-    apiUrl: 'http://localhost:3000/api',
+    apiUrl: Platform.select({
+      ios: 'http://localhost:3000/api',
+      android: 'http://10.0.2.2:3000/api',
+      default: 'http://127.0.0.1:3000/api',
+    }),
   },
   staging: {
     apiUrl: 'https://staging-api.rentingapp.com/api',

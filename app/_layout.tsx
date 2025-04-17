@@ -1,26 +1,17 @@
-import { useEffect } from 'react';
-import { Stack, router } from 'expo-router';
+import { useEffect, useCallback } from 'react';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/store/auth';
 import LoadingScreen from '@/components/LoadingScreen';
 
 export default function RootLayout() {
-  const { token, isLoading, error, loadStoredAuth } = useAuthStore();
+  const token = useAuthStore(state => state.token);
+  const isLoading = useAuthStore(state => state.isLoading);
+  const loadStoredAuth = useAuthStore(state => state.loadStoredAuth);
 
   useEffect(() => {
     loadStoredAuth();
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      // Redirect based on auth state
-      if (!token) {
-        router.replace('/auth');
-      } else {
-        router.replace('/(tabs)');
-      }
-    }
-  }, [isLoading, token]);
+  }, [loadStoredAuth]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -28,24 +19,14 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen 
           name="auth" 
-          options={{ 
-            headerShown: false,
-          }} 
+          redirect={!!token} 
         />
         <Stack.Screen 
           name="(tabs)" 
-          options={{ 
-            headerShown: false,
-            // Prevent going back to auth screens
-            gestureEnabled: false,
-          }} 
+          redirect={!token}
         />
       </Stack>
       <StatusBar style="auto" />

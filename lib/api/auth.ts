@@ -12,13 +12,18 @@ interface SignupResponse {
 }
 
 export const authApi = {
-  login: async (email: string, password: string, role: 'owner' | 'tenant') => {
-    const response = await apiClient.post<LoginResponse>('/auth/login', {
-      email,
-      password,
-      role,
-    });
-    return response.data;
+  login: async (email: string, password: string, role: string) => {
+    try {
+      const response = await apiClient.post<LoginResponse>('/auth/login', {
+        email,
+        password,
+        role,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('API Login error:', error);
+      throw error;
+    }
   },
 
   signup: async (data: {
