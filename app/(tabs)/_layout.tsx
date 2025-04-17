@@ -1,21 +1,36 @@
-import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Chrome as Home, Building2, Receipt, CircleUser as UserCircle2 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/auth';
 
 export default function TabLayout() {
-  const { user } = useAuthStore();
+  const router = useRouter();
+  const { token, isLoading, user } = useAuthStore(state => ({
+    token: state.token,
+    isLoading: state.isLoading,
+    user: state.user
+  }));
   const isOwner = user?.role === 'owner';
 
+  useEffect(() => {
+    if (!isLoading && !token) {
+      router.replace('/auth');
+    }
+  }, [isLoading, token]);
+
+  if (!token) return null;
+
   return (
-    <Tabs screenOptions={{
-      tabBarStyle: {
-        backgroundColor: '#fff',
-        borderTopColor: '#e5e5e5',
-      },
-      tabBarActiveTintColor: '#2563eb',
-      tabBarInactiveTintColor: '#64748b',
-      headerShown: true,
-    }}>
+    <Tabs
+      screenOptions={{
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopColor: '#e5e5e5',
+        },
+        tabBarActiveTintColor: '#2563eb',
+        tabBarInactiveTintColor: '#64748b',
+        headerShown: true,
+      }}>
       <Tabs.Screen
         name="index"
         options={{

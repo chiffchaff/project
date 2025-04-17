@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '@/lib/api/auth';
+import { verifyToken } from '@/utils/auth';
 
 export interface User {
   id: string;
@@ -8,6 +9,10 @@ export interface User {
   email: string;
   role: 'owner' | 'tenant';
   phone: string;
+}
+
+export interface UserWithPassword extends User {
+  password: string;
 }
 
 interface AuthState {
@@ -37,7 +42,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (token && userStr) {
         const user = JSON.parse(userStr);
         try {
-          const { user: freshUser } = await authApi.validateToken();
+          // Verify token is valid
+          const isValid = verifyToken(token);
+          if (!isValid) {
+            throw new Error('Invalid token');
+          }
+          
+          const { user: freshUser } = await authApi.validateToken(token);
           set({ token, user: freshUser, isLoading: false, error: null });
         } catch (error) {
           await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
@@ -70,7 +81,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         error: null 
       });
     } catch (error) {
-      set({ isLoading: false, error: String(error) });
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during sign in';
+      set({ isLoading: false, error: errorMessage });
       throw error;
     }
   },
@@ -87,7 +99,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       set({ token, user, isLoading: false, error: null });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Registration failed';
+      const errorMessage = error.message || 'Registration failed';
       set({ error: errorMessage, isLoading: false });
       throw new Error(errorMessage);
     }

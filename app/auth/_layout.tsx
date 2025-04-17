@@ -1,16 +1,25 @@
-import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { useAuthStore } from '@/store/auth';
 
 export default function AuthLayout() {
+  const router = useRouter();
+  const segments = useSegments();
+  const token = useAuthStore(state => state.token);
+  const isLoading = useAuthStore(state => state.isLoading);
+
+  useEffect(() => {
+    if (!isLoading && token) {
+      router.replace('/(tabs)');
+    }
+  }, [isLoading, token]);
+
   return (
-    <Stack 
+    <Stack
       screenOptions={{
         headerShown: false,
         animation: 'fade',
       }}
-    >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="signup" />
-    </Stack>
+    />
   );
 }
