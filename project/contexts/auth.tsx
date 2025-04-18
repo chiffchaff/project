@@ -67,30 +67,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     phone: string;
     role: 'owner' | 'tenant';
   }) => {
-    const { error: signUpError, data: { user } } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    try {
+      setLoading(true);
 
-    if (signUpError) throw signUpError;
-    if (!user?.id) throw new Error('User ID not found');
+      // Step 1: Create auth user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: data.full_name,
+            phone: data.phone,
+            role: data.role,
+          }
+        }
+      });
 
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: user.id,
-      email,
-      ...data,
-    });
+      if (signUpError) throw signUpError;
+      if (!authData.user) throw new Error('No user returned from signup');
 
-    if (profileError) throw profileError;
+      // Step 2: Sign in immediately to get session
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (signInError) throw signInError;
+      if (!signInData.session) throw new Error('No session after sign in');
+
+      // Step 3: Create profile using the auth user's UUID
+      const profileData: Database['public']['Tables']['profiles']['Insert'] = {
+        id: authData.user.id,  // Use the UUID from auth
+        email,
+        full_name: data.full_name,
+        phone: data.phone,
+        role: data.role,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Creating profile with UUID:', authData.user.id);
+
+      // Use upsert to handle potential conflicts
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert(profileData, {
+          onConflict: 'id',
+          ignoreDuplicates: false
+        })
+        .single();
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        // Clean up auth user if profile creation fails
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw profileError;
+      }
+
+      // Step 4: Fetch the created profile
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      setProfile(profile);
+      setSession(signInData.session);
+      setUser(authData.user);
+      setLoading(false);
+
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) throw error;
+      if (error) throw error;
+
+      if (data.user) {
+        // Fetch user profile after successful login
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+          
+        setProfile(profile);
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
   };
 
   const signOut = async () => {
