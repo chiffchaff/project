@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Camera, Plus, Minus } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,6 +8,15 @@ import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/supabase';
 
 type Property = Database['public']['Tables']['properties']['Row'];
+type PropertyAmenity = Database['public']['Tables']['property_amenities']['Row'];
+
+const defaultAmenities = [
+  { name: 'Water', included: false, monthly_charge: 0 },
+  { name: 'Electricity', included: false, monthly_charge: 0 },
+  { name: 'WiFi', included: false, monthly_charge: 0 },
+  { name: 'Security', included: false, monthly_charge: 0 },
+  { name: 'Parking', included: false, monthly_charge: 0 },
+];
 
 export default function EditProperty() {
   const { id } = useLocalSearchParams();
@@ -23,6 +32,7 @@ export default function EditProperty() {
   const [rent, setRent] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [amenities, setAmenities] = useState(defaultAmenities);
 
   useEffect(() => {
     fetchPropertyDetails();
@@ -33,21 +43,41 @@ export default function EditProperty() {
       setLoading(true);
       setError(null);
 
-      const { data, error: propertyError } = await supabase
+      const { data: propertyData, error: propertyError } = await supabase
         .from('properties')
         .select('*')
         .eq('id', id)
         .single();
 
       if (propertyError) throw propertyError;
-      if (!data) throw new Error('Property not found');
+      if (!propertyData) throw new Error('Property not found');
 
-      setName(data.name);
-      setLocation(data.location);
-      setType(data.type);
-      setRent(data.rent.toString());
-      setDueDate(data.due_date.toString());
-      setPhotos(data.photos || []);
+      const { data: amenitiesData, error: amenitiesError } = await supabase
+        .from('property_amenities')
+        .select('*')
+        .eq('property_id', id);
+
+      if (amenitiesError) throw amenitiesError;
+
+      setName(propertyData.name);
+      setLocation(propertyData.location);
+      setType(propertyData.type);
+      setRent(propertyData.rent.toString());
+      setDueDate(propertyData.due_date.toString());
+      setPhotos(propertyData.photos || []);
+
+      const updatedAmenities = defaultAmenities.map(defaultAmenity => {
+        const existingAmenity = amenitiesData?.find(a => a.name === defaultAmenity.name);
+        return existingAmenity 
+          ? { 
+              name: existingAmenity.name, 
+              included: existingAmenity.included, 
+              monthly_charge: existingAmenity.monthly_charge 
+            }
+          : defaultAmenity;
+      });
+      setAmenities(updatedAmenities);
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -75,12 +105,23 @@ export default function EditProperty() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
+  const handleAmenityToggle = (index: number, included: boolean) => {
+    setAmenities(amenities.map((amenity, i) => 
+      i === index ? { ...amenity, included } : amenity
+    ));
+  };
+
+  const handleAmenityChargeChange = (index: number, charge: string) => {
+    setAmenities(amenities.map((amenity, i) => 
+      i === index ? { ...amenity, monthly_charge: parseInt(charge) || 0 } : amenity
+    ));
+  };
+
   const handleSubmit = async () => {
     try {
       setSaving(true);
       setError(null);
 
-      // Validate required fields
       if (!name || !location || !type || !rent || !dueDate) {
         throw new Error('Please fill in all required fields');
       }
@@ -103,23 +144,26 @@ export default function EditProperty() {
         rent: rentAmount,
         due_date: dueDateNum,
         photos,
+        amenities: amenities.filter(amenity => amenity.included),
       });
 
-      router.back();
+      Alert.alert(
+        "Success",
+        "Property updated successfully!",
+        [
+          { 
+            text: "View Property", 
+            onPress: () => router.replace(`/property/${id}`)
+          }
+        ]
+      );
+
     } catch (err: any) {
       setError(err.message);
     } finally {
       setSaving(false);
     }
   };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
-  }
 
   return (
     <ScrollView style={styles.container}>
@@ -203,6 +247,28 @@ export default function EditProperty() {
               </View>
             ))}
           </ScrollView>
+        </View>
+
+        <View style={styles.amenitiesSection}>
+          <Text style={styles.sectionTitle}>Amenities</Text>
+          {amenities.map((amenity, index) => (
+            <View key={index} style={styles.amenityItem}>
+              <Pressable
+                style={[styles.checkbox, amenity.included && styles.checkboxChecked]}
+                onPress={() => handleAmenityToggle(index, !amenity.included)}
+              />
+              <Text style={styles.amenityName}>{amenity.name}</Text>
+              {amenity.included && (
+                <TextInput
+                  style={[styles.input, styles.chargeInput]}
+                  placeholder="Monthly Charge (₹)"
+                  keyboardType="numeric"
+                  value={amenity.monthly_charge.toString()}
+                  onChangeText={(value) => handleAmenityChargeChange(index, value)}
+                />
+              )}
+            </View>
+          ))}
         </View>
 
         <Pressable
@@ -311,6 +377,33 @@ const styles = StyleSheet.create({
     padding: 4,
     borderWidth: 1,
     borderColor: '#fee2e2',
+  },
+  amenitiesSection: {
+    marginBottom: 24,
+  },
+  amenityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: '#2563eb',
+  },
+  amenityName: {
+    fontSize: 16,
+    color: '#1e293b',
+    flex: 1,
+  },
+  chargeInput: {
+    width: 120,
   },
   submitButton: {
     backgroundColor: '#2563eb',

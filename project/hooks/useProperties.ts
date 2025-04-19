@@ -59,9 +59,15 @@ export function useProperties() {
       setLoading(true);
       setError(null);
 
+      // Get current user's ID
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No authenticated user found');
+
       const { data: propertyData, error: propertyError } = await supabase
         .from('properties')
         .insert({
+          owner_id: user.id,
           name: property.name,
           location: property.location,
           type: property.type,
@@ -108,17 +114,18 @@ export function useProperties() {
       setLoading(true);
       setError(null);
 
-      if (Object.keys(updates).length > 0) {
+      // Only include fields that are actually provided in the updates object
+      const updateFields = Object.entries(updates).reduce((acc, [key, value]) => {
+        if (value !== undefined && key !== 'amenities') {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+
+      if (Object.keys(updateFields).length > 0) {
         const { error: propertyError } = await supabase
           .from('properties')
-          .update({
-            name: updates.name,
-            location: updates.location,
-            type: updates.type,
-            rent: updates.rent,
-            due_date: updates.due_date,
-            photos: updates.photos,
-          })
+          .update(updateFields)
           .eq('id', propertyId);
 
         if (propertyError) throw propertyError;

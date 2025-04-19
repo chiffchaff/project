@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Camera, Plus, Minus } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -90,7 +90,17 @@ export default function AddProperty() {
         amenities: amenities.filter(amenity => amenity.included),
       });
 
-      router.back();
+      Alert.alert(
+        "Success",
+        "Property added successfully!",
+        [
+          { 
+            text: "View My Properties", 
+            onPress: () => router.replace("/(tabs)/properties")
+          }
+        ]
+      );
+
     } catch (err: any) {
       setError(err.message);
     } finally {
