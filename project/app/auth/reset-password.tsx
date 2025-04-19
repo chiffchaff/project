@@ -1,27 +1,45 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
-import { useAuth } from '@/contexts/auth';
+import { supabase } from '@/lib/supabase';
 
-export default function ForgotPassword() {
-  const { resetPassword } = useAuth();
-  const [email, setEmail] = useState('');
+export default function ResetPassword() {
+  const router = useRouter();
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleResetPassword = async () => {
-    if (!email) {
-      setError('Please enter your email address');
-      return;
-    }
-
     try {
-      setLoading(true);
       setError(null);
-      await resetPassword(email);
+      setLoading(true);
+
+      if (!newPassword || !confirmPassword) {
+        throw new Error('Please fill in all fields');
+      }
+
+      if (newPassword !== confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      if (newPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
       setSuccess(true);
+      setTimeout(() => {
+        router.replace('/auth/login');
+      }, 3000);
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -33,13 +51,13 @@ export default function ForgotPassword() {
     return (
       <View style={styles.container}>
         <View style={styles.content}>
-          <Text style={styles.title}>Check Your Email</Text>
+          <Text style={styles.title}>Password Reset Successful</Text>
           <Text style={styles.subtitle}>
-            We've sent a password reset link to {email}. Please check your inbox and follow the instructions to reset your password.
+            Your password has been reset successfully. You will be redirected to the login page.
           </Text>
           <Link href="/auth/login" asChild>
             <Pressable style={styles.submitButton}>
-              <Text style={styles.submitButtonText}>Return to Login</Text>
+              <Text style={styles.submitButtonText}>Go to Login</Text>
             </Pressable>
           </Link>
         </View>
@@ -59,7 +77,7 @@ export default function ForgotPassword() {
       <View style={styles.content}>
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>
-          Enter your registered email address to receive a password reset link
+          Please enter your new password
         </Text>
 
         <View style={styles.form}>
@@ -70,15 +88,24 @@ export default function ForgotPassword() {
           )}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>New Password</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your email address"
-              keyboardType="email-address"
-              autoComplete="email"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
+              placeholder="Enter your new password"
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm your new password"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
             />
           </View>
 
@@ -88,7 +115,7 @@ export default function ForgotPassword() {
             disabled={loading}
           >
             <Text style={styles.submitButtonText}>
-              {loading ? 'Sending Reset Link...' : 'Send Reset Link'}
+              {loading ? 'Resetting Password...' : 'Reset Password'}
             </Text>
           </Pressable>
         </View>
