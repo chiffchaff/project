@@ -1,64 +1,67 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
-import { MapPin, BedDouble, Bath, Users } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Plus } from 'lucide-react-native';
+import { useProperties } from '@/hooks/useProperties';
+import PropertyCard from '@/components/PropertyCard';
+import { useRouter } from 'expo-router';
 
 export default function Properties() {
-  const properties = [
-    {
-      id: 1,
-      name: 'Green Valley Apartments',
-      address: 'Harmu Housing Colony, Ranchi',
-      image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400',
-      units: 4,
-      occupancy: '75%',
-      totalRent: '₹60,000',
-    },
-    {
-      id: 2,
-      name: 'Sunrise Residency',
-      address: 'Kanke Road, Ranchi',
-      image: 'https://images.unsplash.com/photo-1574362848149-11496d93a7c7?w=400',
-      units: 6,
-      occupancy: '100%',
-      totalRent: '₹90,000',
-    },
-  ];
+  const router = useRouter();
+  const { properties, loading, error, refetch } = useProperties();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>My Properties</Text>
-        <Pressable style={styles.addButton}>
+        <Pressable 
+          style={styles.addButton}
+          onPress={() => router.push('/property/add')}
+        >
+          <Plus size={20} color="#fff" />
           <Text style={styles.addButtonText}>Add Property</Text>
         </Pressable>
       </View>
 
-      {properties.map((property) => (
-        <Pressable key={property.id} style={styles.propertyCard}>
-          <Image source={{ uri: property.image }} style={styles.propertyImage} />
-          <View style={styles.propertyContent}>
-            <Text style={styles.propertyName}>{property.name}</Text>
-            <View style={styles.locationContainer}>
-              <MapPin size={16} color="#64748b" />
-              <Text style={styles.locationText}>{property.address}</Text>
-            </View>
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={refetch}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
 
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <BedDouble size={16} color="#64748b" />
-                <Text style={styles.statText}>{property.units} Units</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Users size={16} color="#64748b" />
-                <Text style={styles.statText}>{property.occupancy}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.rentAmount}>{property.totalRent}</Text>
-                <Text style={styles.rentPeriod}>/month</Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-      ))}
+      {properties.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>No Properties Yet</Text>
+          <Text style={styles.emptyStateText}>
+            Add your first property to start managing your rentals
+          </Text>
+          <Pressable 
+            style={styles.addFirstButton}
+            onPress={() => router.push('/property/add')}
+          >
+            <Text style={styles.addFirstButtonText}>Add Your First Property</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.propertiesList}>
+          {properties.map((property) => (
+            <PropertyCard
+              key={property.id}
+              property={property}
+              onPress={() => router.push(`/property/${property.id}`)}
+            />
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -66,6 +69,12 @@ export default function Properties() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#f8fafc',
   },
   header: {
@@ -81,6 +90,9 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: '#2563eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -90,65 +102,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  propertyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  propertyImage: {
-    width: '100%',
-    height: 200,
-  },
-  propertyContent: {
+  errorContainer: {
+    margin: 20,
     padding: 16,
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
   },
-  propertyName: {
-    fontSize: 18,
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginTop: 80,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 8,
   },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 16,
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statText: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  rentAmount: {
+  emptyStateText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#2563eb',
-  },
-  rentPeriod: {
-    fontSize: 12,
     color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  addFirstButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  addFirstButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  propertiesList: {
+    padding: 20,
   },
 });

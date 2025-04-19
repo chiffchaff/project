@@ -1,10 +1,37 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Image } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { Building2, ChevronLeft, Upload } from 'lucide-react-native';
+import { Building2, ChevronLeft, Upload, Plus, Minus, Camera } from 'lucide-react-native';
 import { useAuth } from '@/contexts/auth';
+import * as ImagePicker from 'expo-image-picker';
 
 type UserRole = 'owner' | 'tenant';
+
+interface Amenity {
+  id: string;
+  name: string;
+  included: boolean;
+  monthlyCharge?: number;
+}
+
+interface PropertyListing {
+  id: string;
+  name: string;
+  location: string;
+  type: string;
+  rent: number;
+  dueDate: number;
+  amenities: Amenity[];
+  photos: string[];
+}
+
+const defaultAmenities: Amenity[] = [
+  { id: '1', name: 'Water', included: false, monthlyCharge: 0 },
+  { id: '2', name: 'Electricity', included: false, monthlyCharge: 0 },
+  { id: '3', name: 'WiFi', included: false, monthlyCharge: 0 },
+  { id: '4', name: 'Security', included: false, monthlyCharge: 0 },
+  { id: '5', name: 'Parking', included: false, monthlyCharge: 0 },
+];
 
 export default function Register() {
   const router = useRouter();
@@ -21,6 +48,107 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+
+  const [properties, setProperties] = useState<PropertyListing[]>([{
+    id: '1',
+    name: '',
+    location: '',
+    type: '',
+    rent: 0,
+    dueDate: 5,
+    amenities: [...defaultAmenities],
+    photos: [],
+  }]);
+
+  const handleAddProperty = () => {
+    setProperties([...properties, {
+      id: Date.now().toString(),
+      name: '',
+      location: '',
+      type: '',
+      rent: 0,
+      dueDate: 5,
+      amenities: [...defaultAmenities],
+      photos: [],
+    }]);
+  };
+
+  const handleRemoveProperty = (propertyId: string) => {
+    setProperties(properties.filter(p => p.id !== propertyId));
+  };
+
+  const handlePropertyChange = (propertyId: string, field: keyof PropertyListing, value: any) => {
+    setProperties(properties.map(property => {
+      if (property.id === propertyId) {
+        return { ...property, [field]: value };
+      }
+      return property;
+    }));
+  };
+
+  const handleAmenityToggle = (propertyId: string, amenityId: string, included: boolean) => {
+    setProperties(properties.map(property => {
+      if (property.id === propertyId) {
+        return {
+          ...property,
+          amenities: property.amenities.map(amenity => 
+            amenity.id === amenityId ? { ...amenity, included } : amenity
+          ),
+        };
+      }
+      return property;
+    }));
+  };
+
+  const handleAmenityChargeChange = (propertyId: string, amenityId: string, charge: number) => {
+    setProperties(properties.map(property => {
+      if (property.id === propertyId) {
+        return {
+          ...property,
+          amenities: property.amenities.map(amenity => 
+            amenity.id === amenityId ? { ...amenity, monthlyCharge: charge } : amenity
+          ),
+        };
+      }
+      return property;
+    }));
+  };
+
+  const handleAddPhotos = async (propertyId: string) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setProperties(properties.map(property => {
+          if (property.id === propertyId) {
+            return {
+              ...property,
+              photos: [...property.photos, ...result.assets.map(asset => asset.uri)],
+            };
+          }
+          return property;
+        }));
+      }
+    } catch (err) {
+      console.error('Error picking images:', err);
+    }
+  };
+
+  const handleRemovePhoto = (propertyId: string, photoUri: string) => {
+    setProperties(properties.map(property => {
+      if (property.id === propertyId) {
+        return {
+          ...property,
+          photos: property.photos.filter(uri => uri !== photoUri),
+        };
+      }
+      return property;
+    }));
+  };
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -46,19 +174,55 @@ export default function Register() {
         throw new Error('Aadhaar number is required for tenants');
       }
 
-      if (role === 'owner' && !address) {
-        throw new Error('Address is required for property owners');
+      if (role === 'owner') {
+        if (!address) {
+          throw new Error('Address is required for property owners');
+        }
+
+        // Validate property data
+        if (properties.length > 0) {
+          for (const property of properties) {
+            if (!property.name || !property.location || !property.type || !property.rent) {
+              throw new Error('Please fill in all property details');
+            }
+
+            if (property.rent <= 0) {
+              throw new Error('Rent amount must be greater than 0');
+            }
+
+            if (property.dueDate < 1 || property.dueDate > 31) {
+              throw new Error('Due date must be between 1 and 31');
+            }
+          }
+        }
       }
 
       if (!acceptedTerms) {
         throw new Error('Please accept the terms and conditions');
       }
 
-      // Register user
+      // Register user with properties if owner
       const result = await signUp(email, password, {
         full_name: fullName,
         phone,
         role,
+        ...(role === 'owner' && properties.length > 0 ? {
+          properties: properties.map(property => ({
+            name: property.name,
+            location: property.location,
+            type: property.type,
+            rent: property.rent,
+            dueDate: property.dueDate,
+            photos: property.photos,
+            amenities: property.amenities
+              .filter(amenity => amenity.included)
+              .map(amenity => ({
+                name: amenity.name,
+                included: amenity.included,
+                monthlyCharge: amenity.monthlyCharge || 0,
+              })),
+          })),
+        } : {}),
       });
 
       if (result.requiresEmailVerification) {
@@ -200,6 +364,92 @@ export default function Register() {
               <Upload size={20} color="#2563eb" />
               <Text style={styles.uploadButtonText}>Upload ID Proof (Optional)</Text>
             </Pressable>
+
+            <View style={styles.propertySection}>
+              <Text style={styles.label}>Property Listings</Text>
+              {properties.map(property => (
+                <View key={property.id} style={styles.propertyCard}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Property Name"
+                    value={property.name}
+                    onChangeText={value => handlePropertyChange(property.id, 'name', value)}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Location"
+                    value={property.location}
+                    onChangeText={value => handlePropertyChange(property.id, 'location', value)}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Type (e.g., Apartment, Villa)"
+                    value={property.type}
+                    onChangeText={value => handlePropertyChange(property.id, 'type', value)}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Rent Amount"
+                    keyboardType="numeric"
+                    value={property.rent.toString()}
+                    onChangeText={value => handlePropertyChange(property.id, 'rent', parseInt(value))}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Due Date (e.g., 5th)"
+                    keyboardType="numeric"
+                    value={property.dueDate.toString()}
+                    onChangeText={value => handlePropertyChange(property.id, 'dueDate', parseInt(value))}
+                  />
+                  <View style={styles.amenitiesSection}>
+                    <Text style={styles.label}>Amenities</Text>
+                    {property.amenities.map(amenity => (
+                      <View key={amenity.id} style={styles.amenityItem}>
+                        <Pressable
+                          style={[styles.checkbox, amenity.included && styles.checkboxChecked]}
+                          onPress={() => handleAmenityToggle(property.id, amenity.id, !amenity.included)}
+                        />
+                        <Text style={styles.checkboxLabel}>{amenity.name}</Text>
+                        {amenity.included && (
+                          <TextInput
+                            style={styles.input}
+                            placeholder="Monthly Charge"
+                            keyboardType="numeric"
+                            value={amenity.monthlyCharge?.toString() || ''}
+                            onChangeText={value => handleAmenityChargeChange(property.id, amenity.id, parseInt(value))}
+                          />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.photosSection}>
+                    <Text style={styles.label}>Photos</Text>
+                    <Pressable style={styles.uploadButton} onPress={() => handleAddPhotos(property.id)}>
+                      <Camera size={20} color="#2563eb" />
+                      <Text style={styles.uploadButtonText}>Add Photos</Text>
+                    </Pressable>
+                    <ScrollView horizontal>
+                      {property.photos.map(photoUri => (
+                        <View key={photoUri} style={styles.photoItem}>
+                          <Image source={{ uri: photoUri }} style={styles.photo} />
+                          <Pressable onPress={() => handleRemovePhoto(property.id, photoUri)}>
+                            <Minus size={20} color="#dc2626" />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                  <Pressable style={styles.removeButton} onPress={() => handleRemoveProperty(property.id)}>
+                    <Minus size={20} color="#dc2626" />
+                    <Text style={styles.removeButtonText}>Remove Property</Text>
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable style={styles.addButton} onPress={handleAddProperty}>
+                <Plus size={20} color="#2563eb" />
+                <Text style={styles.addButtonText}>Add Property</Text>
+              </Pressable>
+            </View>
           </>
         )}
 
@@ -421,5 +671,53 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  propertySection: {
+    marginBottom: 24,
+  },
+  propertyCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  amenitiesSection: {
+    marginTop: 16,
+  },
+  amenityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  photosSection: {
+    marginTop: 16,
+  },
+  photoItem: {
+    marginRight: 8,
+  },
+  photo: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  removeButtonText: {
+    color: '#dc2626',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  addButtonText: {
+    color: '#2563eb',
+    fontSize: 16,
+    marginLeft: 8,
   },
 });

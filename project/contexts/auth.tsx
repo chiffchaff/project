@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { Database } from '@/types/supabase';
 
 type AuthContextType = {
   session: Session | null;
@@ -11,6 +12,19 @@ type AuthContextType = {
     full_name: string;
     phone: string;
     role: 'owner' | 'tenant';
+    properties?: {
+      name: string;
+      location: string;
+      type: string;
+      rent: number;
+      dueDate: number;
+      photos: string[];
+      amenities: {
+        name: string;
+        included: boolean;
+        monthlyCharge: number;
+      }[];
+    }[];
   }) => Promise<{ requiresEmailVerification: boolean }>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -66,6 +80,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     full_name: string;
     phone: string;
     role: 'owner' | 'tenant';
+    properties?: {
+      name: string;
+      location: string;
+      type: string;
+      rent: number;
+      dueDate: number;
+      photos: string[];
+      amenities: {
+        name: string;
+        included: boolean;
+        monthlyCharge: number;
+      }[];
+    }[];
   }) => {
     try {
       setLoading(true);
@@ -93,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('No user returned from signup');
 
-      // Don't automatically sign in after signup - require email verification
+      // Create profile
       const profileData: Database['public']['Tables']['profiles']['Insert'] = {
         id: authData.user.id,
         email,
@@ -104,18 +131,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updated_at: new Date().toISOString()
       };
 
-      // Create profile
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert(profileData, {
-          onConflict: 'id',
-          ignoreDuplicates: false
-        });
+        .upsert(profileData);
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
         await supabase.auth.admin.deleteUser(authData.user.id);
         throw profileError;
+      }
+
+      // If user is an owner and has properties, create them
+      if (data.role === 'owner' && data.properties && data.properties.length > 0) {
+        for (const property of data.properties) {
+          // Create property
+          const { data: propertyData, error: propertyError } = await supabase
+            .from('properties')
+            .insert({
+              owner_id: authData.user.id,
+              name: property.name,
+              location: property.location,
+              type: property.type,
+              rent: property.rent,
+              due_date: property.dueDate,
+              photos: property.photos,
+            })
+            .select()
+            .single();
+
+          if (propertyError) {
+            console.error('Property creation error:', propertyError);
+            continue;
+          }
+
+          // Create amenities for the property
+          if (propertyData && property.amenities.length > 0) {
+            const amenitiesData = property.amenities.map(amenity => ({
+              property_id: propertyData.id,
+              name: amenity.name,
+              included: amenity.included,
+              monthly_charge: amenity.monthlyCharge,
+            }));
+
+            const { error: amenitiesError } = await supabase
+              .from('property_amenities')
+              .insert(amenitiesData);
+
+            if (amenitiesError) {
+              console.error('Amenities creation error:', amenitiesError);
+            }
+          }
+        }
       }
 
       setLoading(false);
