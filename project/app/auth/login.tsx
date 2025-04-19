@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, Pressable, Platform } from 'react-na
 import { Link } from 'expo-router';
 import { Building2, Fingerprint } from 'lucide-react-native';
 import { useAuth } from '@/contexts/auth';
+import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -11,14 +12,37 @@ export default function Login() {
   const [role, setRole] = useState<'owner' | 'tenant'>('owner');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendVerification, setResendVerification] = useState(false);
 
   const handleSignIn = async () => {
     try {
       setError(null);
+      setResendVerification(false);
       setLoading(true);
       await signIn(email, password);
-    } catch (err) {
-      setError('Invalid email or password');
+    } catch (err: any) {
+      if (err.message.includes('verify your email')) {
+        setResendVerification(true);
+      }
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+      
+      if (error) throw error;
+      
+      setError('Verification email has been resent. Please check your inbox.');
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -56,8 +80,21 @@ export default function Login() {
         </View>
 
         {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorContainer, resendVerification && styles.warningContainer]}>
+            <Text style={[styles.errorText, resendVerification && styles.warningText]}>
+              {error}
+            </Text>
+            {resendVerification && (
+              <Pressable
+                style={styles.resendButton}
+                onPress={handleResendVerification}
+                disabled={loading}
+              >
+                <Text style={styles.resendButtonText}>
+                  {loading ? 'Sending...' : 'Resend verification email'}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -280,5 +317,21 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: '#2563eb',
+  },
+  warningContainer: {
+    backgroundColor: '#fef9c3',
+  },
+  warningText: {
+    color: '#854d0e',
+  },
+  resendButton: {
+    marginTop: 8,
+    padding: 8,
+  },
+  resendButtonText: {
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

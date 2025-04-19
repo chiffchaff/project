@@ -11,7 +11,7 @@ type AuthContextType = {
     full_name: string;
     phone: string;
     role: 'owner' | 'tenant';
-  }) => Promise<void>;
+  }) => Promise<{ requiresEmailVerification: boolean }>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -70,11 +70,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
 
-      // Step 1: Create auth user
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Step 1: Create auth user with email confirmation enabled
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/login`,
           data: {
             full_name: data.full_name,
             phone: data.phone,
@@ -86,18 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('No user returned from signup');
 
-      // Step 2: Sign in immediately to get session
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (signInError) throw signInError;
-      if (!signInData.session) throw new Error('No session after sign in');
-
-      // Step 3: Create profile using the auth user's UUID
+      // Don't automatically sign in after signup - require email verification
       const profileData: Database['public']['Tables']['profiles']['Insert'] = {
-        id: authData.user.id,  // Use the UUID from auth
+        id: authData.user.id,
         email,
         full_name: data.full_name,
         phone: data.phone,
@@ -106,37 +104,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updated_at: new Date().toISOString()
       };
 
-      console.log('Creating profile with UUID:', authData.user.id);
-
-      // Use upsert to handle potential conflicts
+      // Create profile
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, {
           onConflict: 'id',
           ignoreDuplicates: false
-        })
-        .single();
+        });
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
-        // Clean up auth user if profile creation fails
         await supabase.auth.admin.deleteUser(authData.user.id);
         throw profileError;
       }
 
-      // Step 4: Fetch the created profile
-      const { data: profile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-      
-      setProfile(profile);
-      setSession(signInData.session);
-      setUser(authData.user);
       setLoading(false);
+      return { requiresEmailVerification: true };
 
     } catch (error) {
       setLoading(false);
@@ -152,10 +135,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Email not confirmed')) {
+          throw new Error('Please verify your email address before signing in');
+        }
+        throw error;
+      }
+
+      if (!data.user?.email_confirmed_at) {
+        throw new Error('Please verify your email address before signing in');
+      }
 
       if (data.user) {
-        // Fetch user profile after successful login
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -163,6 +154,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
           
         setProfile(profile);
+        setSession(data.session);
+        setUser(data.user);
       }
       
       setLoading(false);

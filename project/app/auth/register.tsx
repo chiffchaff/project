@@ -20,11 +20,22 @@ export default function Register() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handleRegister = async () => {
     try {
       setError(null);
       setLoading(true);
+
+      // Validate email format
+      if (!validateEmail(email)) {
+        throw new Error('Please enter a valid email address (e.g., user@example.com)');
+      }
 
       // Validate required fields
       if (!fullName || !email || !phone || !password) {
@@ -44,20 +55,40 @@ export default function Register() {
       }
 
       // Register user
-      await signUp(email, password, {
+      const result = await signUp(email, password, {
         full_name: fullName,
         phone,
         role,
       });
 
-      // Navigate to OTP verification
-      router.push('/auth/verify-otp');
+      if (result.requiresEmailVerification) {
+        setEmailVerificationSent(true);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (emailVerificationSent) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Building2 size={48} color="#2563eb" />
+          <Text style={styles.title}>Verify Your Email</Text>
+          <Text style={styles.subtitle}>
+            We've sent a verification link to {email}. Please check your inbox and verify your email address to continue.
+          </Text>
+        </View>
+        <Link href="/auth/login" asChild>
+          <Pressable style={styles.loginButton}>
+            <Text style={styles.loginButtonText}>Return to Login</Text>
+          </Pressable>
+        </Link>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -375,6 +406,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#94a3b8',
   },
   submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loginButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginHorizontal: 20,
+  },
+  loginButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
